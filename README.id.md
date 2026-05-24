@@ -26,9 +26,11 @@ NanoMount adalah modul root berkinerja tinggi yang dirancang untuk menggantikan 
 
 ## Persyaratan Sistem
 
-- **Android**: 10.0+ (API 29+)
-- **Kernel**: `CONFIG_OVERLAY_FS=y` dan `CONFIG_TMPFS_XATTR=y` (standar pada Android 10+)
-- **Root**: Magisk, Magisk Alpha, KernelSU, atau APatch
+| Persyaratan | Detail |
+|-------------|--------|
+| Android | 10.0+ (API 29+) |
+| Kernel | `CONFIG_OVERLAY_FS=y` & `CONFIG_TMPFS_XATTR=y` (Standar pada Android 10+) |
+| Root | Magisk, Magisk Alpha, KernelSU, atau APatch |
 
 ---
 

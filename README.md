@@ -26,9 +26,11 @@ NanoMount is a high-performance root module designed to replace traditional bind
 
 ## Requirements
 
-- **Android**: 10.0+ (API 29+)
-- **Kernel**: `CONFIG_OVERLAY_FS=y` and `CONFIG_TMPFS_XATTR=y` (standard on Android 10+)
-- **Root**: Magisk, Magisk Alpha, KernelSU, or APatch
+| Requirement | Details |
+|-------------|---------|
+| Android | 10.0+ (API 29+) |
+| Kernel | `CONFIG_OVERLAY_FS=y` & `CONFIG_TMPFS_XATTR=y` (Standard on Android 10+) |
+| Root | Magisk, Magisk Alpha, KernelSU, or APatch |
 
 ---
 
