@@ -1,0 +1,4 @@
+# nanomount - manual module list
+# one module id per line (folder name in /data/adb/modules/)
+# lines starting with # are ignored
+# only used when nano_mounts=1

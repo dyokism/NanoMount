@@ -1,0 +1,7 @@
+id=nanomount
+name=NanoMount
+version=1.0
+versionCode=100
+author=dyokism
+description=lightweight overlayfs module for modern android devices.
+updateJson=https://raw.githubusercontent.com/dyokism/NanoMount/main/update.json

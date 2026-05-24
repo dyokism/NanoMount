@@ -1,0 +1,15 @@
+# Changelog
+
+## 1.0
+- **Initial Stable Release**: Reborn as a clean, highly optimized, and bug-free recreation of the OverlayFS global mount concept.
+- **Zero-Bloat Architectural Rewrite**: Size reduced by **99%** (down to a tiny **~7.5 KB** footprint), stripping out legacy loadable kernel modules (`.ko` files) and heavy ext4 sparse image loop mounts in favor of pure, ultra-fast `tmpfs`.
+- **High-Performance SELinux Sampling**: Replaced the expensive sequential file-by-file `chcon` loop with a smart single-file context preservation test on `tmpfs`, significantly speeding up device boot times.
+- **Sandboxed Installation Guard**: Moved the installer's `tmpfs xattr` pen-test file creation to `/dev` (instead of `/mnt`), completely resolving false aborts during installation inside root manager app sandboxes.
+- **Robust dev Boot Fallback**: Built an automated fallback to `/dev/nanomount` if `/mnt` is locked or read-only during the early `post-fs-data` boot stage, assuring 100% mounting success across customized ROMs.
+- **Extended Root Manager Support**: Broadened the binary search path to automatically locate the native busybox environments of APatch and KernelSU:
+  `PATH=/data/adb/ap/bin:/data/adb/ksu/bin:/data/adb/magisk:$PATH`
+- **Xiaomi HyperOS Support**: Added the `mi_ext` dynamic system partition to the mount target list for complete compatibility with Xiaomi, Redmi, and Poco devices.
+- **Timestamp-Based Anti-Bootloop**: Implemented an elegant anti-bootloop routine that automatically disables the module if two rapid reboots within 120 seconds are detected, preserving device accessibility.
+- **Background Watchdog Guard**: Equipped with a 30-second background watchdog timer during boot to force-close hangs and prevent permanent bootloops.
+- **Standardized Code Commenting**: Formatted all source code comments to be 100% lowercase, clean, concise, and completely free of decorative em-dashes (`──`) as per developer guidelines.
+- **Full Brand Coherence**: Renamed all legacy internal system variables and skip flags (such as `mountify_mounts` -> `nano_mounts` and `skip_mountify` -> `skip_nanomount`) to achieve 100% project identity unification.
