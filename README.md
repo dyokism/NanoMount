@@ -4,7 +4,7 @@
 
 **A professional, ultra-lightweight OverlayFS module to globally mount system modifications on modern Android devices.**
 
-![License](https://img.shields.io/badge/License-GPLv3-blue.svg)
+![License](https://img.shields.io/badge/License-MIT-blue.svg)
 ![Android](https://img.shields.io/badge/Android-10.0%2B-green.svg)
 ![Version](https://img.shields.io/badge/Version-1.0-orange.svg)
 ![Root](https://img.shields.io/badge/Root-Magisk%20%7C%20KernelSU%20%7C%20APatch-red.svg)
@@ -45,4 +45,4 @@ NanoMount is a high-performance root module designed to replace traditional bind
 ## Developer & License
 
 - **Developer**: [dyokism](https://github.com/dyokism)
-- **License**: GPLv3 (GNU General Public License v3).
+- **License**: MIT

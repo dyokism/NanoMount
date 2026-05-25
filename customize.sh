@@ -1,6 +1,6 @@
 #!/bin/sh
 # nanomount - customize.sh
-# installation script for magisk alpha
+# installation script
 
 PATH=/data/adb/ap/bin:/data/adb/ksu/bin:/data/adb/magisk:$PATH
 PERSISTENT="/data/adb/nanomount"
