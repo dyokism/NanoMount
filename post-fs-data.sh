@@ -92,39 +92,24 @@ fi
 
 # functions
 
-# mount single-depth dirs under /system (bin, etc, framework, ...)
-# excludes partition-level dirs that get their own controlled_depth
-mount_system_dirs() {
-    for DIRPATH in "$STAGING"/*/; do
-        [ -d "$DIRPATH" ] || continue
-        DIR="${DIRPATH%/}"
-        DIR="${DIR##*/}"
-        # skip partition dirs (handled by controlled_depth)
-        case " $TARGETS " in
-            *" $DIR "*) continue ;;
-        esac
-        [ -d "/system/$DIR" ] || continue
-        busybox mount -t overlay -o "lowerdir=$STAGING/$DIR:/system/$DIR" \
-            "$MOUNT_DEVICE_NAME" "/system/$DIR" && \
-            echo "/system/$DIR" >> "$LOGDIR/mount_list"
-    done
+# mount overlay at /system root
+mount_system() {
+    busybox mount -t overlay -o "lowerdir=$STAGING:/system" \
+        "$MOUNT_DEVICE_NAME" "/system" && \
+        echo "/system" >> "$LOGDIR/mount_list" || \
+        echo "$TAG: failed to mount /system" >> /dev/kmsg
 }
 
-# mount subdirectories of target partitions (product, vendor, etc)
-mount_partition_dirs() {
+# mount overlay at partition root
+mount_partition() {
     local part="$1"
     local prefix="$2"
 
     [ -d "$STAGING/$part" ] || return
-    for DIRPATH in "$STAGING/$part"/*/; do
-        [ -d "$DIRPATH" ] || continue
-        DIR="${DIRPATH%/}"
-        DIR="${DIR##*/}"
-        [ -d "$prefix$part/$DIR" ] || continue
-        busybox mount -t overlay -o "lowerdir=$STAGING/$part/$DIR:$prefix$part/$DIR" \
-            "$MOUNT_DEVICE_NAME" "$prefix$part/$DIR" && \
-            echo "$prefix$part/$DIR" >> "$LOGDIR/mount_list"
-    done
+    busybox mount -t overlay -o "lowerdir=$STAGING/$part:$prefix$part" \
+        "$MOUNT_DEVICE_NAME" "$prefix$part" && \
+        echo "$prefix$part" >> "$LOGDIR/mount_list" || \
+        echo "$TAG: failed to mount $prefix$part" >> /dev/kmsg
 }
 
 # process a single module: validate, copy, preserve selinux + opaques
@@ -149,11 +134,11 @@ process_module() {
     fi
 
     # copy with preserved ownership, permissions, timestamps, and selinux context
-    # this replaces the expensive cp + chcon loop from original mountify
+    # this replaces the sequential cp + chcon loop
     cp -a "$SYSDIR/." "$STAGING/" 2>/dev/null || \
         cp -Lrf "$SYSDIR"/* "$STAGING/" 2>/dev/null
 
-    # if cp -a didn't preserve context (tmpfs may not), fallback chcon
+    # if cp -a did not preserve context (tmpfs may not), fallback to chcon
     # but check only one file to decide, not all
     local SAMPLE_SRC SAMPLE_DST SRC_CTX DST_CTX
     SAMPLE_SRC="$(find "$SYSDIR" -type f -maxdepth 2 | head -1)"
@@ -216,20 +201,20 @@ fi
 # mount overlays
 cd "$STAGING" || exit 1
 
-# system-level dirs first (/system/bin, /system/etc, ...)
-mount_system_dirs
+# system root overlay
+mount_system
 
 # then partition-level dirs
 for part in $TARGETS; do
     # skip if partition name matches our staging folder
     [ "$part" = "$FAKE_MOUNT_NAME" ] && continue
     cd "$STAGING" || continue
-    if [ -L "/$part" ] && [ ! -L "/system/$part" ]; then
-        # legacy: partition symlinked to /system/<part>
-        mount_partition_dirs "$part" "/system/"
-    else
-        # modern: separate partition at /<part>
-        mount_partition_dirs "$part" "/"
+    if [ -d "/$part" ] && busybox mountpoint -q "/$part" 2>/dev/null; then
+        # modern: separate partition mounted at /<part>
+        mount_partition "$part" "/"
+    elif [ -d "/system/$part" ]; then
+        # legacy: partition lives under /system/<part>
+        mount_partition "$part" "/system/"
     fi
 done
 

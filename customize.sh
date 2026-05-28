@@ -16,7 +16,7 @@ else
     abort "[!] OverlayFS (CONFIG_OVERLAY_FS) is required!"
 fi
 
-# check tmpfs xattr support (SELinux & Trusted namespaces)
+# check tmpfs xattr support (selinux & trusted namespaces)
 check_tmpfs_selinux() {
     local testdir="$1"
     local testfile="$testdir/nanomount_selinux_test"
@@ -45,10 +45,10 @@ check_tmpfs_selinux() {
     
     case "$err" in
         *"not supported"*|*"Operation not supported"*)
-            return 1 # Truly unsupported by kernel (cannot set SELinux on tmpfs)
+            return 1 # truly unsupported by kernel (cannot set selinux on tmpfs)
             ;;
         *)
-            return 0 # Supported but restricted by SELinux context in recovery (fine)
+            return 0 # supported but restricted by selinux context in recovery (fine)
             ;;
     esac
 }
@@ -81,16 +81,46 @@ check_tmpfs_trusted() {
     
     case "$err" in
         *"not supported"*|*"Operation not supported"*)
-            return 1 # Truly unsupported
+            return 1 # truly unsupported
             ;;
         *)
-            return 0 # Supported but restricted
+            return 0 # supported but restricted
             ;;
     esac
 }
 
+# test if kernel supports overlay on tmpfs backend
+check_overlay_on_tmpfs() {
+    local testdir="/dev/nanomount_ovtest"
+    local lower1="$testdir/lower1"
+    local lower2="$testdir/lower2"
+    local merged="$testdir/merged"
+    mkdir -p "$lower1" "$lower2" "$merged"
+    busybox mount -t tmpfs tmpfs "$lower1" 2>/dev/null || { rm -rf "$testdir"; return 1; }
+    busybox mount -t tmpfs tmpfs "$lower2" 2>/dev/null || { busybox umount -l "$lower1" 2>/dev/null; rm -rf "$testdir"; return 1; }
+    busybox mount -t overlay -o "lowerdir=$lower1:$lower2" overlay "$merged" 2>/dev/null
+    local ret=$?
+    busybox umount -l "$merged" 2>/dev/null
+    busybox umount -l "$lower2" 2>/dev/null
+    busybox umount -l "$lower1" 2>/dev/null
+    rm -rf "$testdir"
+    return $ret
+}
+
 TEST_DIR="/dev"
 [ -w "$TEST_DIR" ] || abort "[!] /dev is not writable!"
+
+if check_overlay_on_tmpfs; then
+    echo "[+] OverlayFS on tmpfs backend: supported"
+else
+    echo "[-] OverlayFS on tmpfs backend: not supported"
+    abort "
+[!] Aborting: OverlayFS on tmpfs backend is not supported by this kernel.
+[!] Your device kernel has patched out or lacks tmpfs as a valid OverlayFS lower filesystem.
+[!] Try Mountify as an alternative (uses a loop image instead of tmpfs):
+[!] https://github.com/backslashxx/mountify
+"
+fi
 
 if check_tmpfs_selinux "$TEST_DIR"; then
     echo "[+] tmpfs SELinux context preservation: supported"
