@@ -37,7 +37,7 @@ if [ "$DELTA" -lt 120 ] && [ "$LAST_BOOT" -ne 0 ]; then
         touch "$MODDIR/disable"
         sed -i 's/^description=.*/description=Anti-bootloop triggered. Module disabled. Re-enable to activate./' "$MODDIR/module.prop"
         echo "$TAG: anti-bootloop triggered (rapid_boots=$RAPID_BOOTS)" >> /dev/kmsg
-        rm "$LOCKFILE"
+        rm -f "$LOCKFILE"
         exit 1
     fi
 else
@@ -45,8 +45,8 @@ else
 fi
 echo "$NOW" > "$PERSISTENT/last_boot_ts"
 
-# watchdog: kill ourselves after 30s
-(sleep 30 && kill -9 $$ 2>/dev/null) &
+# watchdog: kill ourselves after 60s (safer for slow entry-level devices)
+(sleep 60 && kill -9 $$ 2>/dev/null) &
 WATCHDOG=$!
 
 echo "$TAG: start" >> /dev/kmsg
@@ -63,7 +63,7 @@ if [ ! -w "$MNT" ]; then
     if [ ! -w "$MNT" ]; then
         echo "$TAG: /dev not writable, abort" >> /dev/kmsg
         kill $WATCHDOG 2>/dev/null
-        rm "$LOCKFILE"
+        rm -f "$LOCKFILE"
         exit 1
     fi
 fi
@@ -74,7 +74,7 @@ STAGING="$MNT/$FAKE_MOUNT_NAME"
 if [ -d "$STAGING" ] && busybox mountpoint -q "$STAGING" 2>/dev/null; then
     echo "$TAG: $STAGING is already a mountpoint, abort" >> /dev/kmsg
     kill $WATCHDOG 2>/dev/null
-    rm "$LOCKFILE"
+    rm -f "$LOCKFILE"
     exit 1
 fi
 
@@ -188,7 +188,7 @@ busybox mount -t tmpfs tmpfs "$(realpath "$STAGING")"
 if ! busybox mountpoint -q "$STAGING" 2>/dev/null; then
     echo "$TAG: failed to mount tmpfs at $STAGING" >> /dev/kmsg
     kill $WATCHDOG 2>/dev/null
-    rm "$LOCKFILE"
+    rm -f "$LOCKFILE"
     exit 1
 fi
 
@@ -242,3 +242,5 @@ echo "$TAG: finished" >> /dev/kmsg
 
 # cancel watchdog
 kill $WATCHDOG 2>/dev/null
+rm -f "$LOCKFILE"
+

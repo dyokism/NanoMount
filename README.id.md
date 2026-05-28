@@ -6,7 +6,7 @@
 
 ![License](https://img.shields.io/badge/License-MIT-blue.svg)
 ![Android](https://img.shields.io/badge/Android-10.0%2B-green.svg)
-![Version](https://img.shields.io/badge/Version-1.0-orange.svg)
+![Version](https://img.shields.io/badge/Version-1.1-orange.svg)
 ![Root](https://img.shields.io/badge/Root-Magisk%20%7C%20KernelSU%20%7C%20APatch-red.svg)
 
 ## Deskripsi Umum
@@ -29,7 +29,7 @@ NanoMount adalah modul root berkinerja tinggi yang dirancang untuk menggantikan 
 | Persyaratan | Detail |
 |-------------|--------|
 | Android | 10.0+ (API 29+) |
-| Kernel | `CONFIG_OVERLAY_FS=y` & `CONFIG_TMPFS_XATTR=y` (Standar pada Android 10+) |
+| Kernel | `CONFIG_OVERLAY_FS=y` & dukungan xattr `security.selinux` pada `tmpfs` |
 | Root | Magisk, Magisk Alpha, KernelSU, atau APatch |
 
 ---
@@ -42,7 +42,54 @@ NanoMount adalah modul root berkinerja tinggi yang dirancang untuk menggantikan 
 
 ---
 
+## Cara Kerja (Diagram Alur)
+
+```mermaid
+flowchart TD
+    %% Fase Instalasi
+    subgraph Fase_Instalasi ["1. Fase Instalasi (customize.sh)"]
+        A[Mulai Flash ZIP] --> B{Cek CONFIG_OVERLAY_FS?}
+        B -- Tidak --> ABORT1[Abort: OverlayFS Required]
+        B -- Ya --> C{Cek tmpfs SELinux?}
+        C -- Tidak --> ABORT2[Abort: Kernel Tidak Kompatibel]
+        C -- Ya --> D{Cek tmpfs Trusted xattr?}
+        D -- Ya --> E[Instalasi Sukses: Fitur Lengkap]
+        D -- Tidak --> F[Instalasi Sukses: Warning .replace Tidak Aktif]
+        E & F --> G[Buat Folder Konfigurasi & Selesai]
+    end
+
+    %% Fase Boot Awal
+    subgraph Fase_Boot_Awal ["2. Fase Boot Awal (post-fs-data.sh)"]
+        G --> H[Perangkat Reboot & Booting Dimulai]
+        H --> I[Nyalakan Watchdog 60s & Cek Anti-Bootloop]
+        I --> M[Buat Staging Area tmpfs di /mnt atau /dev]
+        M --> N[Proses Seluruh Modul Aktif]
+        N --> O[Salin File + Terapkan SELinux Context]
+        O --> P[Beri Tanda skip_mount agar Magisk Tidak Double-Mount]
+        P --> Q[Jalankan mount -t overlay untuk Menggabungkan Sistem]
+        Q --> R[Lazy Umount Staging Area agar Memori Bersih]
+        R --> S[Matikan Watchdog]
+    end
+
+    %% Fase Boot Akhir
+    subgraph Fase_Boot_Akhir ["3. Fase Boot Akhir (service.sh)"]
+        S --> T[Sistem Utama Selesai Memuat]
+        T --> U[Baca Log & Perbarui Deskripsi di module.prop]
+        U --> V[Tunggu Hingga sys.boot_completed=1]
+        V --> W[Reset Penghitung Anti-Bootloop & Hapus Log /dev/nanomount]
+        W --> X[Selesai & Sistem Berjalan Stabil]
+    end
+
+    classDef abort fill:#ffcccc,stroke:#ff3333,stroke-width:2px,color:#000;
+    classDef success fill:#ccffcc,stroke:#33cc33,stroke-width:2px,color:#000;
+    class ABORT1,ABORT2 abort;
+    class E,F,X success;
+```
+
+---
+
 ## Pengembang & Lisensi
 
 - **Pengembang**: [dyokism](https://github.com/dyokism)
 - **Lisensi**: MIT
+

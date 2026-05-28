@@ -6,7 +6,7 @@
 
 ![License](https://img.shields.io/badge/License-MIT-blue.svg)
 ![Android](https://img.shields.io/badge/Android-10.0%2B-green.svg)
-![Version](https://img.shields.io/badge/Version-1.0-orange.svg)
+![Version](https://img.shields.io/badge/Version-1.1-orange.svg)
 ![Root](https://img.shields.io/badge/Root-Magisk%20%7C%20KernelSU%20%7C%20APatch-red.svg)
 
 ## Overview
@@ -29,7 +29,7 @@ NanoMount is a high-performance root module designed to replace traditional bind
 | Requirement | Details |
 |-------------|---------|
 | Android | 10.0+ (API 29+) |
-| Kernel | `CONFIG_OVERLAY_FS=y` & `CONFIG_TMPFS_XATTR=y` (Standard on Android 10+) |
+| Kernel | `CONFIG_OVERLAY_FS=y` & `tmpfs` `security.selinux` xattr support |
 | Root | Magisk, Magisk Alpha, KernelSU, or APatch |
 
 ---
@@ -42,7 +42,54 @@ NanoMount is a high-performance root module designed to replace traditional bind
 
 ---
 
+## How It Works (Workflow Diagram)
+
+```mermaid
+flowchart TD
+    %% Installation Phase
+    subgraph Installation ["1. Installation (customize.sh)"]
+        A[Flash Module ZIP] --> B{Check CONFIG_OVERLAY_FS?}
+        B -- No --> ABORT1[Abort: OverlayFS Required]
+        B -- Yes --> C{Check tmpfs SELinux?}
+        C -- No --> ABORT2[Abort: Kernel Incompatible]
+        C -- Yes --> D{Check tmpfs Trusted xattr?}
+        D -- Yes --> E[Install: Full Feature Mode]
+        D -- No --> F[Install: Pure tmpfs Mode]
+        E & F --> G[Setup Config & Complete]
+    end
+
+    %% Early Boot Phase
+    subgraph Early_Boot ["2. Early Boot (post-fs-data.sh)"]
+        G --> H[Device Reboots]
+        H --> I[Start 60s Watchdog & Check Anti-Bootloop]
+        I --> M[Create tmpfs Staging Area]
+        M --> N[Process Active Modules]
+        N --> O[Copy Files & Apply SELinux Contexts]
+        O --> P[Touch skip_mount for Modules]
+        P --> Q[Execute mount -t overlay]
+        Q --> R[Lazy Umount Staging Area]
+        R --> S[Stop Watchdog]
+    end
+
+    %% Late Boot Phase
+    subgraph Late_Boot ["3. Late Boot (service.sh)"]
+        S --> T[Android UI Loaded]
+        T --> U[Update module.prop Description]
+        U --> V[Wait for sys.boot_completed=1]
+        V --> W[Reset Anti-Bootloop Counters & Cleanup Logs]
+        W --> X[Finished & Running Smoothly]
+    end
+
+    classDef abort fill:#ffcccc,stroke:#ff3333,stroke-width:2px,color:#000;
+    classDef success fill:#ccffcc,stroke:#33cc33,stroke-width:2px,color:#000;
+    class ABORT1,ABORT2 abort;
+    class E,F,X success;
+```
+
+---
+
 ## Developer & License
 
 - **Developer**: [dyokism](https://github.com/dyokism)
 - **License**: MIT
+

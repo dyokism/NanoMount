@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1
+- **Separated Kernel Detection**: Separated SELinux and trusted xattr checks on tmpfs, preventing false installation failures on devices.
+- **Clear Installation Abort**: Added a clean abort screen during installation if SELinux xattr is completely unsupported, suggesting Magic OverlayFS as a working alternative.
+- **Extended Watchdog Timer**: Increased the boot watchdog timeout from 30 to 60 seconds to provide better startup stability on slower devices.
+
 ## 1.0
 - **Initial Stable Release**: Reborn as a clean, highly optimized, and bug-free recreation of the OverlayFS global mount concept.
 - **Zero-Bloat Architectural Rewrite**: Size reduced by **99%** (down to a tiny **~7.5 KB** footprint), stripping out legacy loadable kernel modules (`.ko` files) and heavy ext4 sparse image loop mounts in favor of pure, ultra-fast `tmpfs`.
