@@ -42,7 +42,7 @@ NanoMount adalah modul root berkinerja tinggi yang dirancang untuk menggantikan 
 
 ---
 
-## Cara Kerja (Diagram Alur)
+## Cara Kerja
 
 ```mermaid
 flowchart TD
@@ -80,10 +80,19 @@ flowchart TD
         W --> X[Selesai & Sistem Berjalan Stabil]
     end
 
-    classDef abort fill:#ffcccc,stroke:#ff3333,stroke-width:2px,color:#000;
-    classDef success fill:#ccffcc,stroke:#33cc33,stroke-width:2px,color:#000;
+    %% Custom Styles (Transparent background & borderless design)
+    style Fase_Instalasi fill:none,stroke:none
+    style Fase_Boot_Awal fill:none,stroke:none
+    style Fase_Boot_Akhir fill:none,stroke:none
+
+    classDef default fill:none,stroke:#9ca3af,stroke-width:1px;
+    classDef abort fill:#fee2e2,stroke:#ef4444,stroke-width:1.5px,color:#991b1b;
+    classDef success fill:#d1fae5,stroke:#10b981,stroke-width:1.5px,color:#065f46;
+    classDef check fill:none,stroke:#f59e0b,stroke-width:1.5px;
+
     class ABORT1,ABORT2 abort;
     class E,F,X success;
+    class B,C,D check;
 ```
 
 ---
