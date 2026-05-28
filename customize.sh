@@ -106,8 +106,8 @@ else
     abort "
 [!] Aborting: security.selinux xattr on tmpfs is not supported by this kernel.
 [!] NanoMount requires this feature to correctly apply SELinux labels to overlay files.
-[!] Try magic_overlayfs as an alternative (uses a loop image instead of tmpfs):
-[!] https://github.com/HuskyDG/magic_overlayfs
+[!] Try Mountify as an alternative (uses a loop image instead of tmpfs):
+[!] https://github.com/backslashxx/mountify
 "
 fi
 
