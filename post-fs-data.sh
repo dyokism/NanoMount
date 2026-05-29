@@ -128,9 +128,12 @@ process_module() {
     echo "$TAG: processing $MODULE_ID" >> /dev/kmsg
 
     # set skip_mount so magisk doesn't also bind-mount
+    # ensure no duplicate in skipped_modules
     if [ ! -f "$MDIR/skip_mount" ]; then
         touch "$MDIR/skip_mount"
-        echo "$MODULE_ID" >> "$PERSISTENT/skipped_modules"
+        if ! grep -qxF "$MODULE_ID" "$PERSISTENT/skipped_modules" 2>/dev/null; then
+            echo "$MODULE_ID" >> "$PERSISTENT/skipped_modules"
+        fi
     fi
 
     # copy with preserved ownership, permissions, timestamps, and selinux context
@@ -147,16 +150,18 @@ process_module() {
         SRC_CTX="$(ls -Z "$SAMPLE_SRC" 2>/dev/null | awk '{print $1}')"
         DST_CTX="$(ls -Z "$SAMPLE_DST" 2>/dev/null | awk '{print $1}')"
         if [ "$SRC_CTX" != "$DST_CTX" ] && [ -n "$SRC_CTX" ]; then
-            # context mismatch: need full chcon pass
-            for file in $(busybox find -L "$SYSDIR" 2>/dev/null); do
-                local rel="${file#"$SYSDIR"}"
-                [ -e "$STAGING$rel" ] && busybox chcon --reference="$file" "$STAGING$rel" 2>/dev/null
-            done
+             # context mismatch: need full chcon pass
+             # use while-read to avoid word splitting
+             busybox find -L "$SYSDIR" 2>/dev/null | while IFS= read -r file; do
+                 local rel="${file#"$SYSDIR"}"
+                 [ -e "$STAGING$rel" ] && busybox chcon --reference="$file" "$STAGING$rel" 2>/dev/null
+             done
         fi
     fi
 
     # catch opaque dirs (module replace= support)
-    for dir in $(busybox find -L "$SYSDIR" -type d 2>/dev/null); do
+    # use while-read to avoid word splitting
+    busybox find -L "$SYSDIR" -type d 2>/dev/null | while IFS= read -r dir; do
         if getfattr -d "$dir" 2>/dev/null | grep -q "trusted.overlay.opaque"; then
             local rel="${dir#"$SYSDIR"}"
             [ -d "$STAGING$rel" ] && busybox setfattr -n trusted.overlay.opaque -v y "$STAGING$rel" 2>/dev/null

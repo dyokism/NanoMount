@@ -1,7 +1,7 @@
 # Changelog
 
 ## 1.2
-- **OverlayFS on tmpfs Kernel Check**: Added graceful kernel compatibility detection during installation (`customize.sh`), with special thanks to [bnsmb](https://github.com/bnsmb) for discovering the kernel-level incompatibility and helping design a more structured, strict check. The check mounts a temporary tmpfs and runs a dummy overlayfs stack using it to confirm kernel compatibility. If unsupported, the installation aborts cleanly with a detailed message suggesting Mountify as a working alternative.
+- **OverlayFS on tmpfs Kernel Check**: Added graceful kernel compatibility detection during installation (`customize.sh`), with special thanks to [bnsmb](https://github.com/bnsmb) for discovering the kernel-level incompatibility, strict check. The check mounts a temporary tmpfs and runs a dummy overlayfs stack using it to confirm kernel compatibility. If unsupported, the installation aborts cleanly with a detailed message suggesting Mountify as a working alternative.
 - **Root-Level Overlay Mount**: Changed overlay mount strategy from per-subdirectory to per-root-partition, resolving mount conflicts with Magisk's internal tmpfs mounts on subdirectories like `/product/bin` and `/system/bin`.
 
 ## 1.1

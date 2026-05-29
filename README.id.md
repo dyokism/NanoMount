@@ -47,55 +47,47 @@ NanoMount adalah modul root yang sangat ringan (*ultra-lightweight*), menggantik
 
 ```mermaid
 flowchart TD
-    %% Fase Instalasi
-    subgraph Fase_Instalasi ["1. Fase Instalasi (customize.sh)"]
-        FlashZip[Mulai Flash ZIP] --> CheckOverlay{Cek CONFIG_OVERLAY_FS?}
-        CheckOverlay -- Tidak --> AbortOverlay[Abort: OverlayFS Required]
-        CheckOverlay -- Ya --> CheckTmpfsBackend{Cek Overlay di tmpfs?}
-        CheckTmpfsBackend -- Tidak --> AbortTmpfsBackend[Abort: Kernel Tidak Kompatibel]
-        CheckTmpfsBackend -- Ya --> CheckSELinux{Cek tmpfs SELinux?}
-        CheckSELinux -- Tidak --> AbortSELinux[Abort: SELinux xattr Tidak Didukung]
-        CheckSELinux -- Ya --> CheckTrusted{Cek tmpfs Trusted xattr?}
-        CheckTrusted -- Ya --> FullMode[Instalasi Sukses: Fitur Lengkap]
-        CheckTrusted -- Tidak --> PureMode[Instalasi Sukses: Warning .replace Tidak Aktif]
-        FullMode & PureMode --> ConfigSetup[Buat Folder Konfigurasi & Selesai]
-    end
+    FlashZip([Mulai: Flash ZIP Modul]) --> CheckOverlay{Cek CONFIG_OVERLAY_FS?}
+    CheckOverlay -- Tidak --> AbortOverlay[Abort: OverlayFS Required]
+    CheckOverlay -- Ya --> CheckTmpfsBackend{Cek Overlay di tmpfs?}
+    
+    CheckTmpfsBackend -- Tidak --> AbortTmpfsBackend[Abort: Kernel Tidak Kompatibel]
+    CheckTmpfsBackend -- Ya --> CheckSELinux{Cek tmpfs SELinux?}
+    
+    CheckSELinux -- Tidak --> AbortSELinux[Abort: SELinux xattr Tidak Didukung]
+    CheckSELinux -- Ya --> CheckTrusted{Cek tmpfs Trusted xattr?}
+    
+    CheckTrusted -- Ya --> FullMode[Instalasi Sukses: Fitur Lengkap]
+    CheckTrusted -- No --> PureMode[Instalasi Sukses: Warning .replace Tidak Aktif]
+    
+    FullMode & PureMode --> ConfigSetup[Buat Folder Konfigurasi & Selesai]
+    ConfigSetup --> BootStart[Perangkat Reboot & Booting Dimulai]
+    
+    BootStart --> WatchdogStart[Nyalakan Watchdog 60s & Cek Anti-Bootloop]
+    WatchdogStart --> StagingCreate[Buat Staging Area tmpfs di /mnt atau /dev]
+    StagingCreate --> ProcessModules[Proses Seluruh Modul Aktif]
+    ProcessModules --> CopyFiles[Salin File + Terapkan SELinux Context]
+    CopyFiles --> SkipMount[Beri Tanda skip_mount agar Magisk Tidak Double-Mount]
+    SkipMount --> MountOverlay[Mount Overlay di Root Partisi]
+    MountOverlay --> CleanStaging[Lazy Umount Staging Area agar Memori Bersih]
+    CleanStaging --> WatchdogStop[Matikan Watchdog & Late Boot service.sh]
+    
+    WatchdogStop --> UILoaded[Sistem Utama Selesai Memuat]
+    UILoaded --> UpdateProp[Baca Log & Perbarui Deskripsi di module.prop]
+    UpdateProp --> WaitBoot[Tunggu Hingga sys.boot_completed=1]
+    WaitBoot --> ResetAntiBoot[Reset Penghitung Anti-Bootloop & Hapus Log /dev/nanomount]
+    ResetAntiBoot --> Finished([Selesai: Sistem Berjalan Stabil])
 
-    %% Fase Boot Awal
-    subgraph Fase_Boot_Awal ["2. Fase Boot Awal (post-fs-data.sh)"]
-        ConfigSetup --> BootStart[Perangkat Reboot & Booting Dimulai]
-        BootStart --> WatchdogStart[Nyalakan Watchdog 60s & Cek Anti-Bootloop]
-        WatchdogStart --> StagingCreate[Buat Staging Area tmpfs di /mnt atau /dev]
-        StagingCreate --> ProcessModules[Proses Seluruh Modul Aktif]
-        ProcessModules --> CopyFiles[Salin File + Terapkan SELinux Context]
-        CopyFiles --> SkipMount[Beri Tanda skip_mount agar Magisk Tidak Double-Mount]
-        SkipMount --> MountOverlay[Mount Overlay di Root Partisi]
-        MountOverlay --> CleanStaging[Lazy Umount Staging Area agar Memori Bersih]
-        CleanStaging --> WatchdogStop[Matikan Watchdog]
-    end
-
-    %% Fase Boot Akhir
-    subgraph Fase_Boot_Akhir ["3. Fase Boot Akhir (service.sh)"]
-        WatchdogStop --> UILoaded[Sistem Utama Selesai Memuat]
-        UILoaded --> UpdateProp[Baca Log & Perbarui Deskripsi di module.prop]
-        UpdateProp --> WaitBoot[Tunggu Hingga sys.boot_completed=1]
-        WaitBoot --> ResetAntiBoot[Reset Penghitung Anti-Bootloop & Hapus Log /dev/nanomount]
-        ResetAntiBoot --> Finished[Selesai & Sistem Berjalan Stabil]
-    end
-
-    %% Custom Styles
-    style Fase_Instalasi fill:none,stroke:none
-    style Fase_Boot_Awal fill:none,stroke:none
-    style Fase_Boot_Akhir fill:none,stroke:none
-
-    classDef default fill:none,stroke:#9ca3af,stroke-width:1px;
-    classDef abort fill:#fee2e2,stroke:#ef4444,stroke-width:1.5px,color:#991b1b;
-    classDef success fill:#d1fae5,stroke:#10b981,stroke-width:1.5px,color:#065f46;
-    classDef check fill:none,stroke:#f59e0b,stroke-width:1.5px;
-
-    class AbortOverlay,AbortTmpfsBackend,AbortSELinux abort;
-    class FullMode,PureMode,Finished success;
-    class CheckOverlay,CheckTmpfsBackend,CheckSELinux,CheckTrusted check;
+    %% Kustomisasi Tampilan dan Warna (Tema Gelap Ultra-Redup)
+    classDef startEnd fill:#1b2c24,stroke:#34d399,stroke-width:1.5px,color:#e6f4ea;
+    classDef fail fill:#2c1b1b,stroke:#f87171,stroke-width:1.5px,color:#fce8e6;
+    classDef decision fill:#2d2216,stroke:#fbbf24,stroke-width:1.5px,color:#fef3c7;
+    classDef process fill:#1e293b,stroke:#475569,stroke-width:1px,color:#f1f5f9;
+    
+    class FlashZip,Finished startEnd;
+    class AbortOverlay,AbortTmpfsBackend,AbortSELinux fail;
+    class CheckOverlay,CheckTmpfsBackend,CheckSELinux,CheckTrusted decision;
+    class FullMode,PureMode,ConfigSetup,BootStart,WatchdogStart,StagingCreate,ProcessModules,CopyFiles,SkipMount,MountOverlay,CleanStaging,WatchdogStop,UILoaded,UpdateProp,WaitBoot,ResetAntiBoot process;
 ```
 
 ---
@@ -103,6 +95,6 @@ flowchart TD
 ## Pengembang, Kontributor & Lisensi
 
 - **Pengembang**: [dyokism](https://github.com/dyokism)
-- **Terima Kasih Khusus**: [bnsmb](https://github.com/bnsmb) karena telah membantu menemukan celah ketidakcocokan kernel dan membantu merancang pemeriksaan instalasi modul agar lebih ketat dan terstruktur.
+- **Terima Kasih Khusus**: [bnsmb](https://github.com/bnsmb) karena telah membantu menemukan celah ketidakcocokan kernel.
 - **Lisensi**: MIT
 

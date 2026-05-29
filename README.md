@@ -47,55 +47,47 @@ NanoMount is an ultra-lightweight root module that replaces heavy, traditional b
 
 ```mermaid
 flowchart TD
-    %% Installation Phase
-    subgraph Installation ["1. Installation (customize.sh)"]
-        FlashZip[Flash Module ZIP] --> CheckOverlay{Check CONFIG_OVERLAY_FS?}
-        CheckOverlay -- No --> AbortOverlay[Abort: OverlayFS Required]
-        CheckOverlay -- Yes --> CheckTmpfsBackend{Check Overlay on tmpfs?}
-        CheckTmpfsBackend -- No --> AbortTmpfsBackend[Abort: tmpfs Backend Unsupported]
-        CheckTmpfsBackend -- Yes --> CheckSELinux{Check tmpfs SELinux?}
-        CheckSELinux -- No --> AbortSELinux[Abort: SELinux xattr Unsupported]
-        CheckSELinux -- Yes --> CheckTrusted{Check tmpfs Trusted xattr?}
-        CheckTrusted -- Yes --> FullMode[Install: Full Feature Mode]
-        CheckTrusted -- No --> PureMode[Install: Pure tmpfs Mode]
-        FullMode & PureMode --> ConfigSetup[Setup Config & Complete]
-    end
+    FlashZip([Start: Flash ZIP Module]) --> CheckOverlay{Check CONFIG_OVERLAY_FS?}
+    CheckOverlay -- No --> AbortOverlay[Abort: OverlayFS Required]
+    CheckOverlay -- Yes --> CheckTmpfsBackend{Check Overlay on tmpfs?}
+    
+    CheckTmpfsBackend -- No --> AbortTmpfsBackend[Abort: tmpfs Backend Unsupported]
+    CheckTmpfsBackend -- Yes --> CheckSELinux{Check tmpfs SELinux?}
+    
+    CheckSELinux -- No --> AbortSELinux[Abort: SELinux xattr Unsupported]
+    CheckSELinux -- Yes --> CheckTrusted{Check tmpfs Trusted xattr?}
+    
+    CheckTrusted -- Yes --> FullMode[Install: Full Feature Mode]
+    CheckTrusted -- No --> PureMode[Install: Pure tmpfs Mode]
+    
+    FullMode & PureMode --> ConfigSetup[Setup Config & Complete]
+    ConfigSetup --> BootStart[Device Reboots & Early Boot Post-FS]
+    
+    BootStart --> WatchdogStart[Start 60s Watchdog & Check Anti-Bootloop]
+    WatchdogStart --> StagingCreate[Create tmpfs Staging Area]
+    StagingCreate --> ProcessModules[Process Active Modules]
+    ProcessModules --> CopyFiles[Copy Files & Apply SELinux Contexts]
+    CopyFiles --> SkipMount[Touch skip_mount for Modules]
+    SkipMount --> MountOverlay[Mount Overlay at Partition Root Level]
+    MountOverlay --> CleanStaging[Lazy Umount Staging Area]
+    CleanStaging --> WatchdogStop[Stop Watchdog & Late Boot service.sh]
+    
+    WatchdogStop --> UILoaded[Android UI Loaded]
+    UILoaded --> UpdateProp[Update module.prop Description]
+    UpdateProp --> WaitBoot[Wait for sys.boot_completed=1]
+    WaitBoot --> ResetAntiBoot[Reset Anti-Bootloop Counters & Cleanup Logs]
+    ResetAntiBoot --> Finished([Finished: Running Smoothly])
 
-    %% Early Boot Phase
-    subgraph Early_Boot ["2. Early Boot (post-fs-data.sh)"]
-        ConfigSetup --> BootStart[Device Reboots]
-        BootStart --> WatchdogStart[Start 60s Watchdog & Check Anti-Bootloop]
-        WatchdogStart --> StagingCreate[Create tmpfs Staging Area]
-        StagingCreate --> ProcessModules[Process Active Modules]
-        ProcessModules --> CopyFiles[Copy Files & Apply SELinux Contexts]
-        CopyFiles --> SkipMount[Touch skip_mount for Modules]
-        SkipMount --> MountOverlay[Mount Overlay at Partition Root Level]
-        MountOverlay --> CleanStaging[Lazy Umount Staging Area]
-        CleanStaging --> WatchdogStop[Stop Watchdog]
-    end
-
-    %% Late Boot Phase
-    subgraph Late_Boot ["3. Late Boot (service.sh)"]
-        WatchdogStop --> UILoaded[Android UI Loaded]
-        UILoaded --> UpdateProp[Update module.prop Description]
-        UpdateProp --> WaitBoot[Wait for sys.boot_completed=1]
-        WaitBoot --> ResetAntiBoot[Reset Anti-Bootloop Counters & Cleanup Logs]
-        ResetAntiBoot --> Finished[Finished & Running Smoothly]
-    end
-
-    %% Custom Styles
-    style Installation fill:none,stroke:none
-    style Early_Boot fill:none,stroke:none
-    style Late_Boot fill:none,stroke:none
-
-    classDef default fill:none,stroke:#9ca3af,stroke-width:1px;
-    classDef abort fill:#fee2e2,stroke:#ef4444,stroke-width:1.5px,color:#991b1b;
-    classDef success fill:#d1fae5,stroke:#10b981,stroke-width:1.5px,color:#065f46;
-    classDef check fill:none,stroke:#f59e0b,stroke-width:1.5px;
-
-    class AbortOverlay,AbortTmpfsBackend,AbortSELinux abort;
-    class FullMode,PureMode,Finished success;
-    class CheckOverlay,CheckTmpfsBackend,CheckSELinux,CheckTrusted check;
+    %% Custom Styles and Colors (Ultra-Muted Slate Theme)
+    classDef startEnd fill:#1b2c24,stroke:#34d399,stroke-width:1.5px,color:#e6f4ea;
+    classDef fail fill:#2c1b1b,stroke:#f87171,stroke-width:1.5px,color:#fce8e6;
+    classDef decision fill:#2d2216,stroke:#fbbf24,stroke-width:1.5px,color:#fef3c7;
+    classDef process fill:#1e293b,stroke:#475569,stroke-width:1px,color:#f1f5f9;
+    
+    class FlashZip,Finished startEnd;
+    class AbortOverlay,AbortTmpfsBackend,AbortSELinux fail;
+    class CheckOverlay,CheckTmpfsBackend,CheckSELinux,CheckTrusted decision;
+    class FullMode,PureMode,ConfigSetup,BootStart,WatchdogStart,StagingCreate,ProcessModules,CopyFiles,SkipMount,MountOverlay,CleanStaging,WatchdogStop,UILoaded,UpdateProp,WaitBoot,ResetAntiBoot process;
 ```
 
 ---
@@ -103,6 +95,6 @@ flowchart TD
 ## Developer, Credits & License
 
 - **Developer**: [dyokism](https://github.com/dyokism)
-- **Special Thanks**: [bnsmb](https://github.com/bnsmb) for finding the kernel compatibility gap and helping structure the module installation check to be much stricter and cleaner.
+- **Special Thanks**: [bnsmb](https://github.com/bnsmb) for finding the kernel compatibility gap.
 - **License**: MIT
 

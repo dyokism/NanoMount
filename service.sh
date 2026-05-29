@@ -29,7 +29,14 @@ if [ -f "$LOGDIR/modules" ]; then
 else
     desc="$desc | no modules mounted"
 fi
-sed -i "s/^description=.*/$desc/" "$MODDIR/module.prop"
+# safely update module description without sed fragility
+if [ -f "$MODDIR/module.prop" ]; then
+    temp_prop="$MODDIR/module.prop.tmp"
+    (
+        grep -v '^description=' "$MODDIR/module.prop"
+        echo "$desc"
+    ) > "$temp_prop" && mv "$temp_prop" "$MODDIR/module.prop"
+fi
 
 # wait for boot completion, then reset anti-bootloop
 until [ "$(getprop sys.boot_completed)" = "1" ]; do
