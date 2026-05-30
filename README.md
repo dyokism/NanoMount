@@ -31,7 +31,9 @@ NanoMount is an ultra-lightweight root module that replaces heavy, traditional b
 |-------------|---------|
 | Android | 10.0+ (API 29+) |
 | Kernel | `CONFIG_OVERLAY_FS=y`, `tmpfs` as valid OverlayFS lower filesystem, & `tmpfs` `security.selinux` xattr support |
-| Root | Magisk, Magisk Alpha, KernelSU, or APatch |
+| Root | Magisk, KernelSU, or APatch |
+
+*(Note: KSU + susfs compatibility with strict MDM (e.g. Intune) is not yet verified).*
 
 ---
 
