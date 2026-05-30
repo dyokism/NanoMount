@@ -45,6 +45,23 @@ NanoMount is an ultra-lightweight root module that replaces heavy, traditional b
 
 ---
 
+## Conflict Resolution
+
+If multiple modules modify the same file (e.g., `/system/etc/hosts`), the last processed file wins in the `tmpfs` staging area:
+*   **Auto Mode**: Processed **alphabetically** by module folder name. The last folder alphabetically wins.
+*   **Manual Mode**: Processed **top-to-bottom** as listed in `/data/adb/nanomount/modules.txt`. The bottom-most module wins.
+
+---
+
+## Excluding Modules
+
+To prevent NanoMount from processing a specific module (e.g., if it is incompatible or manages its own mounting):
+*   Create an empty file named `skip_nanomount` inside that module's folder:
+    `/data/adb/modules/<module-id>/skip_nanomount`
+*   NanoMount will ignore this module and let your root manager handle it normally.
+
+---
+
 ## How It Works
 
 ```mermaid

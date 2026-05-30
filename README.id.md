@@ -33,6 +33,8 @@ NanoMount adalah modul root yang sangat ringan (*ultra-lightweight*), menggantik
 | Kernel | `CONFIG_OVERLAY_FS=y`, `tmpfs` sebagai filesystem lower OverlayFS yang valid, & dukungan xattr `security.selinux` pada `tmpfs` |
 | Root | Magisk, Magisk Alpha, KernelSU, atau APatch |
 
+*(Catatan: Kompatibilitas KSU + susfs dengan MDM ketat (misal. Intune) belum diverifikasi).*
+
 ---
 
 ## Instalasi & Konfigurasi
@@ -40,6 +42,23 @@ NanoMount adalah modul root yang sangat ringan (*ultra-lightweight*), menggantik
 1. Pasang berkas ZIP melalui tab **Modules** di manager root Anda.
 2. **Reboot** (Mulai ulang) perangkat Anda untuk mengaktifkan.
 3. Atur konfigurasi pada: `/data/adb/nanomount/config.sh`
+
+---
+
+## Resolusi Konflik
+
+Jika beberapa modul memodifikasi file yang sama (misal `/system/etc/hosts`), file yang diproses terakhir akan menang di staging area `tmpfs`:
+*   **Mode Otomatis**: Diproses secara **alfabetis** berdasarkan nama folder modul. Folder dengan alfabet terakhir yang menang.
+*   **Mode Manual**: Diproses dari **atas ke bawah** sesuai daftar di `/data/adb/nanomount/modules.txt`. Baris paling bawah yang menang.
+
+---
+
+## Mengecualikan Modul
+
+Untuk mencegah NanoMount memproses modul tertentu (misalnya jika tidak kompatibel atau memiliki sistem *mount* mandiri):
+*   Buat file kosong bernama `skip_nanomount` di dalam folder modul tersebut:
+    `/data/adb/modules/<module-id>/skip_nanomount`
+*   NanoMount akan mengabaikan modul tersebut dan menyerahkan pemrosesan sepenuhnya ke manajer root Anda.
 
 ---
 
