@@ -12,7 +12,7 @@ PATH=/data/adb/ap/bin:/data/adb/ksu/bin:/data/adb/magisk:$PATH
 nano_mounts=2
 [ -f "$PERSISTENT/config.sh" ] && . "$PERSISTENT/config.sh"
 
-# update module description with status
+# update description with status
 case $nano_mounts in
     1) mode="manual" ;;
     2) mode="auto" ;;
@@ -29,7 +29,7 @@ if [ -f "$LOGDIR/modules" ]; then
 else
     desc="$desc | no modules mounted"
 fi
-# safely update module description without sed fragility
+# safely update description without sed
 if [ -f "$MODDIR/module.prop" ]; then
     temp_prop="$MODDIR/module.prop.tmp"
     (
@@ -38,7 +38,7 @@ if [ -f "$MODDIR/module.prop" ]; then
     ) > "$temp_prop" && mv "$temp_prop" "$MODDIR/module.prop"
 fi
 
-# wait for boot completion, then reset anti-bootloop
+# wait for boot, then reset anti-bootloop
 until [ "$(getprop sys.boot_completed)" = "1" ]; do
     sleep 1
 done

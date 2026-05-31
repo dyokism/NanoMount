@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck disable=SC3043
 # nanomount - customize.sh
 # installation script
 
@@ -16,7 +17,7 @@ else
     abort "[!] OverlayFS (CONFIG_OVERLAY_FS) is required!"
 fi
 
-# check tmpfs xattr support (selinux & trusted namespaces)
+# check tmpfs xattr support
 check_tmpfs_selinux() {
     local testdir="$1"
     local testfile="$testdir/nanomount_selinux_test"
@@ -44,11 +45,11 @@ check_tmpfs_selinux() {
     fi
     
     case "$err" in
-        *"not supported"*|*"Operation not supported"*)
-            return 1 # truly unsupported by kernel (cannot set selinux on tmpfs)
+        *"not supported"*)
+            return 1 # truly unsupported by kernel
             ;;
         *)
-            return 0 # supported but restricted by selinux context in recovery (fine)
+            return 0 # supported but restricted by recovery
             ;;
     esac
 }
@@ -80,7 +81,7 @@ check_tmpfs_trusted() {
     fi
     
     case "$err" in
-        *"not supported"*|*"Operation not supported"*)
+        *"not supported"*)
             return 1 # truly unsupported
             ;;
         *)
@@ -89,7 +90,7 @@ check_tmpfs_trusted() {
     esac
 }
 
-# test if kernel supports overlay on tmpfs backend
+# check overlay on tmpfs
 check_overlay_on_tmpfs() {
     local testdir="/dev/nanomount_ovtest"
     local lower1="$testdir/lower1"
@@ -122,14 +123,19 @@ else
 "
 fi
 
+# setup persistent config directory
+mkdir -p "$PERSISTENT"
+
 if check_tmpfs_selinux "$TEST_DIR"; then
     echo "[+] tmpfs SELinux context preservation: supported"
     if check_tmpfs_trusted "$TEST_DIR"; then
         echo "[+] tmpfs trusted xattrs (directory replace): supported"
+        touch "$PERSISTENT/trusted_xattr_supported"
     else
         echo "[-] tmpfs trusted xattrs (directory replace): not supported by kernel"
         echo "[!] WARNING: Directory REPLACE (.replace) feature won't be available,"
         echo "[!] but the module will mount other files perfectly in pure tmpfs mode."
+        rm -f "$PERSISTENT/trusted_xattr_supported"
     fi
 else
     echo "[-] tmpfs SELinux context preservation: not supported"
@@ -140,9 +146,6 @@ else
 [!] https://github.com/backslashxx/mountify
 "
 fi
-
-# setup persistent config directory
-mkdir -p "$PERSISTENT"
 
 # copy default configs if not present
 for file in config.sh modules.txt; do
@@ -155,7 +158,7 @@ done
 # cleanup template files
 rm -f "$MODPATH/config.sh" "$MODPATH/modules.txt"
 
-# reset anti-bootloop state on fresh install
+# reset anti-bootloop on fresh install
 echo 0 > "$PERSISTENT/rapid_boots"
 rm -f "$PERSISTENT/last_boot_ts"
 

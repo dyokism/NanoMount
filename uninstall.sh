@@ -5,7 +5,7 @@
 PATH=/data/adb/ap/bin:/data/adb/ksu/bin:/data/adb/magisk:$PATH
 PERSISTENT="/data/adb/nanomount"
 
-# remove skip_mount flags we created on other modules
+# remove skip_mount flags on other modules
 if [ -f "$PERSISTENT/skipped_modules" ]; then
     while IFS= read -r module; do
         [ -n "$module" ] && rm -f "/data/adb/modules/$module/skip_mount"

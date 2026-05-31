@@ -9,7 +9,7 @@ LOGDIR="/dev/nanomount"
 TAG="nanomount"
 PATH=/data/adb/ap/bin:/data/adb/ksu/bin:/data/adb/magisk:$PATH
 
-# config defaults (overridden by config.sh)
+# config defaults
 nano_mounts=2
 FAKE_MOUNT_NAME="my_preload"
 MOUNT_DEVICE_NAME="overlay"
@@ -17,13 +17,18 @@ MOUNT_DEVICE_NAME="overlay"
 # load persistent config
 [ -f "$PERSISTENT/config.sh" ] && . "$PERSISTENT/config.sh"
 
-# exit immediately if disabled
+# exit if disabled
 [ "$nano_mounts" = 0 ] && exit 0
 
 # single instance lock
 LOCKFILE="/dev/nanomount_lock"
 [ -f "$LOCKFILE" ] && exit 1
 touch "$LOCKFILE"
+
+# register cleanup trap to ensure lockfile is removed and watchdog is killed on exit
+WATCHDOG=""
+trap 'rm -f "$LOCKFILE"; [ -n "$WATCHDOG" ] && kill $WATCHDOG 2>/dev/null' EXIT
+trap 'exit 1' INT TERM
 
 # anti-bootloop: timestamp-based
 LAST_BOOT=$(cat "$PERSISTENT/last_boot_ts" 2>/dev/null || echo 0)
@@ -37,7 +42,6 @@ if [ "$DELTA" -lt 120 ] && [ "$LAST_BOOT" -ne 0 ]; then
         touch "$MODDIR/disable"
         sed -i 's/^description=.*/description=Anti-bootloop triggered. Module disabled. Re-enable to activate./' "$MODDIR/module.prop"
         echo "$TAG: anti-bootloop triggered (rapid_boots=$RAPID_BOOTS)" >> /dev/kmsg
-        rm -f "$LOCKFILE"
         exit 1
     fi
 else
@@ -45,8 +49,8 @@ else
 fi
 echo "$NOW" > "$PERSISTENT/last_boot_ts"
 
-# watchdog: kill ourselves after 60s (safer for slow entry-level devices)
-(sleep 60 && kill -9 $$ 2>/dev/null) &
+# watchdog: kill after 60s for safety
+(sleep 60 && kill $$ 2>/dev/null) &
 WATCHDOG=$!
 
 echo "$TAG: start" >> /dev/kmsg
@@ -55,32 +59,27 @@ echo "$TAG: start" >> /dev/kmsg
 mkdir -p "$LOGDIR"
 cat /proc/mounts > "$LOGDIR/before"
 
-# mount point: try /mnt first, fallback to /dev if not writable
+# mount point: try /mnt first, fallback to /dev
 MNT="/mnt"
 if [ ! -w "$MNT" ]; then
     echo "$TAG: /mnt not writable, trying /dev" >> /dev/kmsg
     MNT="/dev"
     if [ ! -w "$MNT" ]; then
         echo "$TAG: /dev not writable, abort" >> /dev/kmsg
-        kill $WATCHDOG 2>/dev/null
-        rm -f "$LOCKFILE"
         exit 1
     fi
 fi
 
 STAGING="$MNT/$FAKE_MOUNT_NAME"
 
-# safety: don't clobber existing real directories
+# don't clobber existing directories
 if [ -d "$STAGING" ] && busybox mountpoint -q "$STAGING" 2>/dev/null; then
     echo "$TAG: $STAGING is already a mountpoint, abort" >> /dev/kmsg
-    kill $WATCHDOG 2>/dev/null
-    rm -f "$LOCKFILE"
     exit 1
 fi
 
 # overlay target partitions
-# note: if fake_mount_name matches a target name, that target is skipped
-# to avoid overlaying our own staging area
+# skip target if it matches fake_mount_name to avoid self-overlay
 TARGETS="odm product system_ext vendor mi_ext my_bigball my_carrier my_company my_engineering my_heytap my_manifest my_preload my_product my_region my_reserve my_stock oem optics prism"
 
 # getfattr helper
@@ -92,7 +91,7 @@ fi
 
 # functions
 
-# mount overlay at /system root
+# mount system root
 mount_system() {
     busybox mount -t overlay -o "lowerdir=$STAGING:/system" \
         "$MOUNT_DEVICE_NAME" "/system" && \
@@ -100,7 +99,7 @@ mount_system() {
         echo "$TAG: failed to mount /system" >> /dev/kmsg
 }
 
-# mount overlay at partition root
+# mount partition
 mount_partition() {
     local part="$1"
     local prefix="$2"
@@ -112,13 +111,13 @@ mount_partition() {
         echo "$TAG: failed to mount $prefix$part" >> /dev/kmsg
 }
 
-# process a single module: validate, copy, preserve selinux + opaques
+# process module: copy and set attributes
 process_module() {
     local MODULE_ID="$1"
     local MDIR="/data/adb/modules/$MODULE_ID"
     local SYSDIR="$MDIR/system"
 
-    # skip: no /system, disabled, pending removal, skip flag, hosts-only
+    # skip if invalid, disabled, removed, or hosts-only
     [ -d "$SYSDIR" ] || return
     [ -f "$MDIR/disable" ] && return
     [ -f "$MDIR/remove" ] && return
@@ -127,8 +126,8 @@ process_module() {
 
     echo "$TAG: processing $MODULE_ID" >> /dev/kmsg
 
-    # set skip_mount so magisk doesn't also bind-mount
-    # ensure no duplicate in skipped_modules
+    # set skip_mount to prevent double mount
+    # prevent duplicate in skipped_modules
     if [ ! -f "$MDIR/skip_mount" ]; then
         touch "$MDIR/skip_mount"
         if ! grep -qxF "$MODULE_ID" "$PERSISTENT/skipped_modules" 2>/dev/null; then
@@ -136,13 +135,12 @@ process_module() {
         fi
     fi
 
-    # copy with preserved ownership, permissions, timestamps, and selinux context
-    # this replaces the sequential cp + chcon loop
+    # copy files preserving attributes
     cp -a "$SYSDIR/." "$STAGING/" 2>/dev/null || \
         cp -Lrf "$SYSDIR"/* "$STAGING/" 2>/dev/null
 
-    # if cp -a did not preserve context (tmpfs may not), fallback to chcon
-    # but check only one file to decide, not all
+    # fallback to chcon if cp -a did not preserve selinux context
+    # sample check one file. edge case: may miss if sample matches fallback.
     local SAMPLE_SRC SAMPLE_DST SRC_CTX DST_CTX
     SAMPLE_SRC="$(find "$SYSDIR" -type f -maxdepth 2 | head -1)"
     if [ -n "$SAMPLE_SRC" ]; then
@@ -150,8 +148,8 @@ process_module() {
         SRC_CTX="$(ls -Z "$SAMPLE_SRC" 2>/dev/null | awk '{print $1}')"
         DST_CTX="$(ls -Z "$SAMPLE_DST" 2>/dev/null | awk '{print $1}')"
         if [ "$SRC_CTX" != "$DST_CTX" ] && [ -n "$SRC_CTX" ]; then
-             # context mismatch: need full chcon pass
-             # use while-read to avoid word splitting
+             # mismatch: run full chcon pass
+             # loop with while-read to avoid word splitting. note: subshell orphan risk is acceptable.
              busybox find -L "$SYSDIR" 2>/dev/null | while IFS= read -r file; do
                  local rel="${file#"$SYSDIR"}"
                  [ -e "$STAGING$rel" ] && busybox chcon --reference="$file" "$STAGING$rel" 2>/dev/null
@@ -159,30 +157,30 @@ process_module() {
         fi
     fi
 
-    # catch opaque dirs (module replace= support)
-    # use while-read to avoid word splitting
-    busybox find -L "$SYSDIR" -type d 2>/dev/null | while IFS= read -r dir; do
-        if getfattr -d "$dir" 2>/dev/null | grep -q "trusted.overlay.opaque"; then
-            local rel="${dir#"$SYSDIR"}"
-            [ -d "$STAGING$rel" ] && busybox setfattr -n trusted.overlay.opaque -v y "$STAGING$rel" 2>/dev/null
-        fi
-    done
+    # handle opaque directories for replace support
+    # loop with while-read. note: same acceptable subshell risk.
+    if [ -f "$PERSISTENT/trusted_xattr_supported" ]; then
+        busybox find -L "$SYSDIR" -type d 2>/dev/null | while IFS= read -r dir; do
+            if getfattr -d "$dir" 2>/dev/null | grep -q "trusted.overlay.opaque"; then
+                local rel="${dir#"$SYSDIR"}"
+                [ -d "$STAGING$rel" ] && busybox setfattr -n trusted.overlay.opaque -v y "$STAGING$rel" 2>/dev/null
+            fi
+        done
+    fi
 
     echo "$MODULE_ID" >> "$LOGDIR/modules"
 }
 
-# create staging area (tmpfs)
+# create tmpfs staging area
 mkdir -p "$STAGING"
 busybox mount -t tmpfs tmpfs "$(realpath "$STAGING")"
 
 if ! busybox mountpoint -q "$STAGING" 2>/dev/null; then
     echo "$TAG: failed to mount tmpfs at $STAGING" >> /dev/kmsg
-    kill $WATCHDOG 2>/dev/null
-    rm -f "$LOCKFILE"
     exit 1
 fi
 
-# enumerate and process modules
+# scan and process modules
 if [ "$nano_mounts" = 1 ] && [ -f "$PERSISTENT/modules.txt" ]; then
     # manual mode
     while IFS= read -r line; do
@@ -192,12 +190,12 @@ if [ "$nano_mounts" = 1 ] && [ -f "$PERSISTENT/modules.txt" ]; then
         process_module "$module_id"
     done < "$PERSISTENT/modules.txt"
 else
-    # auto mode: scan all modules with /system
+    # auto mode: scan active modules with system directory
     for sysdir in /data/adb/modules/*/system; do
         [ -d "$sysdir" ] || continue
         module_id="${sysdir%/system}"
         module_id="${module_id##*/}"
-        # never mount ourselves
+        # skip self
         [ "$module_id" = "nanomount" ] && continue
         process_module "$module_id"
     done
@@ -206,31 +204,28 @@ fi
 # mount overlays
 cd "$STAGING" || exit 1
 
-# system root overlay
+# mount system root
 mount_system
 
-# then partition-level dirs
+# mount partitions
 for part in $TARGETS; do
-    # skip if partition name matches our staging folder
+    # skip staging folder matching target
     [ "$part" = "$FAKE_MOUNT_NAME" ] && continue
     cd "$STAGING" || continue
     if [ -d "/$part" ] && busybox mountpoint -q "/$part" 2>/dev/null; then
-        # modern: separate partition mounted at /<part>
+        # modern: separate partition at /<part>
         mount_partition "$part" "/"
     elif [ -d "/system/$part" ]; then
-        # legacy: partition lives under /system/<part>
+        # legacy: partition at /system/<part>
         mount_partition "$part" "/system/"
     fi
 done
 
-# cleanup staging tmpfs
+# umount staging tmpfs
 busybox umount -l "$(realpath "$STAGING")" 2>/dev/null
 
 # log final state
 cat /proc/mounts > "$LOGDIR/after"
 echo "$TAG: finished" >> /dev/kmsg
 
-# cancel watchdog
-kill $WATCHDOG 2>/dev/null
-rm -f "$LOCKFILE"
-
+# execution completed; shell will exit and trigger trap
