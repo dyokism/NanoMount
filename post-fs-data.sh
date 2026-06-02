@@ -91,24 +91,24 @@ fi
 
 # functions
 
-# mount system root
-mount_system() {
-    busybox mount -t overlay -o "lowerdir=$STAGING:/system" \
-        "$MOUNT_DEVICE_NAME" "/system" && \
-        echo "/system" >> "$LOGDIR/mount_list" || \
-        echo "$TAG: failed to mount /system" >> /dev/kmsg
-}
+# mount subdirectory overlay
+mount_subdir() {
+    local staging_path="$1"
+    local target_path="$2"
 
-# mount partition
-mount_partition() {
-    local part="$1"
-    local prefix="$2"
+    [ -d "$staging_path" ] || return
+    [ -d "$target_path" ] || return
 
-    [ -d "$STAGING/$part" ] || return
-    busybox mount -t overlay -o "lowerdir=$STAGING/$part:$prefix$part" \
-        "$MOUNT_DEVICE_NAME" "$prefix$part" && \
-        echo "$prefix$part" >> "$LOGDIR/mount_list" || \
-        echo "$TAG: failed to mount $prefix$part" >> /dev/kmsg
+    # skip if target_path is already a mountpoint to prevent duplicate mounts
+    if busybox mountpoint -q "$target_path" 2>/dev/null; then
+        echo "$TAG: $target_path is already a mountpoint, skipping" >> /dev/kmsg
+        return
+    fi
+
+    busybox mount -t overlay -o "lowerdir=$staging_path:$target_path" \
+        "$MOUNT_DEVICE_NAME" "$target_path" && \
+        echo "$target_path" >> "$LOGDIR/mount_list" || \
+        echo "$TAG: failed to mount overlay at $target_path" >> /dev/kmsg
 }
 
 # process module: copy and set attributes
@@ -201,24 +201,48 @@ else
     done
 fi
 
-# mount overlays
-cd "$STAGING" || exit 1
+# mount overlays in subdirectory granularity
 
-# mount system root
-mount_system
+# 1. mount /system subdirectories (scanning directly under staging root, excluding target partition directories)
+for subdir_path in "$STAGING"/*; do
+    [ -d "$subdir_path" ] || continue
+    name="${subdir_path##*/}"
+    
+    # skip target partitions to prevent mounting them as /system subdirectories
+    case " $TARGETS " in
+        *" $name "*) continue ;;
+    esac
+    
+    mount_subdir "$subdir_path" "/system/$name"
+done
 
-# mount partitions
+# 2. mount other partitions subdirectories (legacy and modern handling)
 for part in $TARGETS; do
     # skip staging folder matching target
     [ "$part" = "$FAKE_MOUNT_NAME" ] && continue
-    cd "$STAGING" || continue
-    if [ -d "/$part" ] && busybox mountpoint -q "/$part" 2>/dev/null; then
-        # modern: separate partition at /<part>
-        mount_partition "$part" "/"
-    elif [ -d "/system/$part" ]; then
+    [ -d "$STAGING/$part" ] || continue
+
+    prefix=""
+    if [ -L "/$part" ] && [ ! -L "/system/$part" ]; then
         # legacy: partition at /system/<part>
-        mount_partition "$part" "/system/"
+        prefix="/system/"
+    elif [ -d "/$part" ] && busybox mountpoint -q "/$part" 2>/dev/null; then
+        # modern: partition at /<part>
+        prefix="/"
+    elif [ -d "/system/$part" ]; then
+        # fallback legacy
+        prefix="/system/"
+    else
+        # target not present on device
+        continue
     fi
+
+    # mount each subdirectory inside the target partition staging area
+    for subdir_path in "$STAGING/$part"/*; do
+        [ -d "$subdir_path" ] || continue
+        name="${subdir_path##*/}"
+        mount_subdir "$subdir_path" "${prefix}${part}/${name}"
+    done
 done
 
 # umount staging tmpfs

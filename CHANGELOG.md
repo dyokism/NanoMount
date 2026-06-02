@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4
+- **High-Stealth Subdirectory Mounting**: Refactored the core mounting engine from partition-level overlays to first-level subdirectory overlays (e.g., `/system/bin`, `/system/etc`). This keeps the root `/system` and `/vendor` entries in `/proc/mounts` as stock EROFS/EXT4.
+- **Staging Scan Bug Fix**: Resolved a critical path mismatch by scanning directly under the staging root `$STAGING/*` instead of the empty `$STAGING/system/*` folder, ensuring all modifications are correctly processed.
+- **Dynamic Legacy Symlink Support**: Added automated symlink path redirection (`[ -L "/$part" ]`) to target `/system/vendor` instead of `/vendor` on legacy devices, preventing double mounts and collisions.
+- **Mount Point Conflict Safety**: Implemented duplicate mountpoint checks to automatically skip pre-mounted system directories, protecting device stability during early boot.
+
 ## 1.3
 - **Optimized Boot Performance**: Added persistence for the trusted xattr capability check (`check_tmpfs_trusted`) to `$PERSISTENT/trusted_xattr_supported` during installation.
 - **Opaque Scanning Bypass**: Automatically skip the directory opaque attribute restoration loop during early boot (`post-fs-data.sh`) on kernels lacking trusted xattr support, eliminating redundant overhead.

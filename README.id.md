@@ -43,6 +43,29 @@ NanoMount adalah modul root yang sangat ringan (*ultra-lightweight*), menggantik
 2. **Reboot** (Mulai ulang) perangkat Anda untuk mengaktifkan.
 3. Atur konfigurasi pada: `/data/adb/nanomount/config.sh`
 
+## Struktur Berkas
+
+```text
+NanoMount/
+├── META-INF/
+│   └── com/
+│       └── google/
+│           └── android/
+│               ├── update-binary
+│               └── updater-script
+├── config.sh       # opsi konfigurasi pengguna
+├── customize.sh    # pemeriksaan kompatibilitas saat instalasi
+├── module.prop     # metadata modul
+├── post-fs-data.sh # mesin utama mount overlay sub-direktori
+└── service.sh      # reset penghitung waktu boot selesai
+```
+
+---
+
+## Keterbatasan Diketahui
+
+*   **Konflik Mount Sub-direktori**: NanoMount memasang modifikasi pada tingkat sub-direktori pertama (misal `/system/bin`, `/system/etc`). Jika ada skrip early-boot atau alat lain yang sudah me-mount berkas sistem langsung pada sub-direktori tersebut sebelum NanoMount berjalan, maka mount ganda akan diabaikan demi keselamatan sistem. Modifikasi apa pun di dalam sub-direktori tersebut tidak akan diterapkan (dicatat di `/dev/kmsg`).
+
 ---
 
 ## Resolusi Konflik

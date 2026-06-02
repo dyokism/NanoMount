@@ -43,6 +43,29 @@ NanoMount is an ultra-lightweight root module that replaces heavy, traditional b
 2. **Reboot** your device to activate.
 3. Configure settings at: `/data/adb/nanomount/config.sh`
 
+## File Structure
+
+```text
+NanoMount/
+├── META-INF/
+│   └── com/
+│       └── google/
+│           └── android/
+│               ├── update-binary
+│               └── updater-script
+├── config.sh       # user-configurable settings
+├── customize.sh    # install-time compatibility checks
+├── module.prop     # module metadata properties
+├── post-fs-data.sh # core subdirectory mount engine
+└── service.sh      # boot completion watchdog reset
+```
+
+---
+
+## Known Limitations
+
+*   **Subdirectory Mount Conflicts**: NanoMount mounts modifications at the first-level subdirectory level (e.g., `/system/bin`, `/system/etc`). If another early-boot script or tool has already mounted a filesystem directly over one of these subdirectories before NanoMount runs, the duplicate mount will be skipped for safety. Any modifications inside that specific subdirectory will not be applied (logged to `/dev/kmsg`).
+
 ---
 
 ## Conflict Resolution
