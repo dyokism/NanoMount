@@ -1,9 +1,9 @@
-#!/bin/sh
+#!/system/bin/sh
 # shellcheck disable=SC1091
 # nanomount - service.sh
 # late boot: update status, reset anti-bootloop
 
-MODDIR="/data/adb/modules/nanomount"
+MODDIR=${0%/*}
 PERSISTENT="/data/adb/nanomount"
 LOGDIR="/dev/nanomount"
 PATH=/data/adb/ap/bin:/data/adb/ksu/bin:/data/adb/magisk:$PATH
@@ -29,6 +29,7 @@ if [ -f "$LOGDIR/modules" ]; then
 else
     desc="$desc | no modules mounted"
 fi
+
 # safely update description without sed
 if [ -f "$MODDIR/module.prop" ]; then
     temp_prop="$MODDIR/module.prop.tmp"
@@ -39,12 +40,36 @@ if [ -f "$MODDIR/module.prop" ]; then
 fi
 
 # wait for boot, then reset anti-bootloop
-until [ "$(getprop sys.boot_completed)" = "1" ]; do
-    sleep 1
-done
+if command -v resetprop >/dev/null 2>&1; then
+    resetprop -w sys.boot_completed 0
+else
+    until [ "$(getprop sys.boot_completed)" = "1" ]; do
+        sleep 1
+    done
+fi
 
 echo 0 > "$PERSISTENT/rapid_boots"
 date +%s > "$PERSISTENT/last_boot_ts"
+
+# Save boot summary log before cleanup
+if [ -d "$LOGDIR" ]; then
+    mkdir -p "$PERSISTENT"
+    {
+        echo "=== NanoMount Boot Summary ==="
+        echo "Boot Time: $(date)"
+        echo "Mode: $mode"
+        if [ -f "$LOGDIR/modules" ]; then
+            echo "Mounted Modules:"
+            cat "$LOGDIR/modules"
+        else
+            echo "No modules mounted."
+        fi
+        if [ -f "$LOGDIR/mount_list" ]; then
+            echo "Mounted Subdirectories:"
+            cat "$LOGDIR/mount_list"
+        fi
+    } > "$PERSISTENT/last_boot.log"
+fi
 
 # cleanup
 rm -f "/dev/nanomount_lock"

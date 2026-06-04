@@ -2,11 +2,11 @@
 
 # NanoMount
 
-**A high-performance, ultra-lightweight OverlayFS module to globally mount system modifications on modern Android devices.**
+**A high-performance, ultra-lightweight OverlayFS mount engine for Android.**
 
 ![License](https://img.shields.io/badge/License-MIT-blue.svg)
 ![Android](https://img.shields.io/badge/Android-10.0%2B-green.svg)
-![Version](https://img.shields.io/badge/Version-1.4-orange.svg)
+![Version](https://img.shields.io/badge/Version-2.0-orange.svg)
 ![Root](https://img.shields.io/badge/Root-Magisk%20%7C%20KernelSU%20%7C%20APatch-red.svg)
 
 ## Overview
@@ -17,11 +17,11 @@ NanoMount is an ultra-lightweight root module that replaces heavy, traditional b
 
 ## Why Use NanoMount?
 
-- **Stealth by Design**: Mounts files under hidden paths (like `/dev/my_preload`), easily bypassing banking apps and root detection.
-- **Pure RAM Staging**: Operates entirely in memory (`tmpfs`). Zero disk overhead, no heavy ext4 loop images, and no storage wear.
-- **Faster Boot**: Skips slow file-by-file SELinux (`chcon`) loops during startup by validating compatibility at install time.
-- **Installation Guard**: Verifies kernel OverlayFS-on-tmpfs and SELinux support during installation, aborting safely to prevent bootloops.
-- **Universal Compatibility**: Works out-of-the-box with Magisk, KernelSU, and APatch on Android 10+.
+- **Stealth by Design**: Mounts files under hidden paths (like `/dev/my_preload`), bypassing root detection and security checks.
+- **Pure RAM Staging**: Operates entirely in memory (`tmpfs`). Zero disk overhead, no ext4 loop images, and no storage wear.
+- **Sourced Shell Safety**: Fully refactored to execute safely when sourced as `metamount.sh` in KernelSU and APatch.
+- **Optimized & Dynamic**: Features a manager-aware watchdog (8s on KSU/APatch, 35s on Magisk) and eliminates subshell pipelines for faster boot times.
+- **Persistent Diagnostics**: Saves a clean boot diagnostic summary at `/data/adb/nanomount/last_boot.log`.
 
 ---
 
@@ -33,17 +33,15 @@ NanoMount is an ultra-lightweight root module that replaces heavy, traditional b
 | Kernel | `CONFIG_OVERLAY_FS=y`, `tmpfs` as valid OverlayFS lower filesystem, & `tmpfs` `security.selinux` xattr support |
 | Root | Magisk, KernelSU, or APatch |
 
-*(Note: KSU + susfs compatibility with strict MDM (e.g. Intune) is not yet verified).*
-
 ---
 
-## Installation & Configuration
+## Installation & File Structure
 
 1. Install the ZIP file via your root manager's **Modules** tab.
 2. **Reboot** your device to activate.
 3. Configure settings at: `/data/adb/nanomount/config.sh`
 
-## File Structure
+### File Structure
 
 ```text
 NanoMount/
@@ -53,31 +51,28 @@ NanoMount/
 │           └── android/
 │               ├── update-binary
 │               └── updater-script
-├── config.sh       # user-configurable settings
-├── customize.sh    # install-time compatibility checks
-├── module.prop     # module metadata properties
-├── post-fs-data.sh # core subdirectory mount engine
-└── service.sh      # boot completion watchdog reset
+├── config.sh           # user-configurable settings
+├── customize.sh        # install-time compatibility & metamodule setup
+├── module.prop         # module metadata properties
+├── post-fs-data.sh     # core subdirectory mount engine (renamed to metamount.sh on KSU/APatch)
+├── service.sh          # status description updater & diagnostic logger
+├── boot-completed.sh  # boot completion watchdog reset (KSU/APatch)
+└── uninstall.sh        # cleanup script
 ```
 
 ---
 
-## Known Limitations
+## Limitations & Advanced Configuration
 
-*   **Subdirectory Mount Conflicts**: NanoMount mounts modifications at the first-level subdirectory level (e.g., `/system/bin`, `/system/etc`). If another early-boot script or tool has already mounted a filesystem directly over one of these subdirectories before NanoMount runs, the duplicate mount will be skipped for safety. Any modifications inside that specific subdirectory will not be applied (logged to `/dev/kmsg`).
+### Known Limitations
+NanoMount mounts modifications at the first-level subdirectory level (e.g., `/system/bin`, `/system/etc`). If another early-boot script or tool has already mounted a filesystem directly over one of these subdirectories before NanoMount runs, the duplicate mount will be skipped for safety. Any modifications inside that specific subdirectory will not be applied (logged to `/dev/kmsg`).
 
----
-
-## Conflict Resolution
-
+### Conflict Resolution
 If multiple modules modify the same file (e.g., `/system/etc/hosts`), the last processed file wins in the `tmpfs` staging area:
 *   **Auto Mode**: Processed **alphabetically** by module folder name. The last folder alphabetically wins.
 *   **Manual Mode**: Processed **top-to-bottom** as listed in `/data/adb/nanomount/modules.txt`. The bottom-most module wins.
 
----
-
-## Excluding Modules
-
+### Excluding Modules
 To prevent NanoMount from processing a specific module (e.g., if it is incompatible or manages its own mounting):
 *   Create an empty file named `skip_nanomount` inside that module's folder:
     `/data/adb/modules/<module-id>/skip_nanomount`
@@ -105,19 +100,19 @@ flowchart TD
     FullMode & PureMode --> ConfigSetup[Setup Config & Complete]
     ConfigSetup --> BootStart[Device Reboots & Early Boot Post-FS]
     
-    BootStart --> WatchdogStart[Start 60s Watchdog & Check Anti-Bootloop]
+    BootStart --> WatchdogStart[Start Dynamic Watchdog & Check Anti-Bootloop]
     WatchdogStart --> StagingCreate[Create tmpfs Staging Area]
     StagingCreate --> ProcessModules[Process Active Modules]
-    ProcessModules --> CopyFiles[Copy Files & Apply SELinux Contexts]
+    ProcessModules --> CopyFiles[Copy Files & Apply SELinux Contexts via Filesystem]
     CopyFiles --> SkipMount[Touch skip_mount for Modules]
-    SkipMount --> MountOverlay[Mount Overlay at Partition Root Level]
+    SkipMount --> MountOverlay[Mount Overlay at Subdirectory Levels]
     MountOverlay --> CleanStaging[Lazy Umount Staging Area]
-    CleanStaging --> WatchdogStop[Stop Watchdog & Late Boot service.sh]
+    CleanStaging --> WatchdogStop[Stop Watchdog & Run service.sh]
     
     WatchdogStop --> UILoaded[Android UI Loaded]
     UILoaded --> UpdateProp[Update module.prop Description]
-    UpdateProp --> WaitBoot[Wait for sys.boot_completed=1]
-    WaitBoot --> ResetAntiBoot[Reset Anti-Bootloop Counters & Cleanup Logs]
+    UpdateProp --> WaitBoot[Wait for sys.boot_completed=0]
+    WaitBoot --> ResetAntiBoot[Reset Anti-Bootloop & Save Diagnostic Log]
     ResetAntiBoot --> Finished([Finished: Running Smoothly])
 
     %% Custom Styles and Colors (Ultra-Muted Slate Theme)
@@ -139,4 +134,3 @@ flowchart TD
 - **Developer**: [dyokism](https://github.com/dyokism)
 - **Special Thanks**: [bnsmb](https://github.com/bnsmb) for finding the kernel compatibility gap.
 - **License**: MIT
-

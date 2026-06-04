@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0
+- **Native Metamodule Mode**: Added native metamodule mounting support for KernelSU and APatch.
+- **Sourced Shell Safety**: Refactored the mount engine to run safely when sourced as `metamount.sh`.
+- **Dynamic Watchdog & Optimizations**: Implemented a manager-aware watchdog (8s on KSU/APatch, 35s on Magisk) and removed subshell fork overheads.
+- **Persistent Diagnostic Logging**: Saves boot mounting summaries to `/data/adb/nanomount/last_boot.log` before cleanup.
+
 ## 1.4
 - **High-Stealth Subdirectory Mounting**: Refactored the core mounting engine from partition-level overlays to first-level subdirectory overlays (e.g., `/system/bin`, `/system/etc`). This keeps the root `/system` and `/vendor` entries in `/proc/mounts` as stock EROFS/EXT4.
 - **Staging Scan Bug Fix**: Resolved a critical path mismatch by scanning directly under the staging root `$STAGING/*` instead of the empty `$STAGING/system/*` folder, ensuring all modifications are correctly processed.

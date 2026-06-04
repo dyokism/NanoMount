@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/system/bin/sh
 # shellcheck disable=SC3043
 # nanomount - customize.sh
 # installation script
@@ -6,13 +6,13 @@
 PATH=/data/adb/ap/bin:/data/adb/ksu/bin:/data/adb/magisk:$PATH
 PERSISTENT="/data/adb/nanomount"
 
-echo "[+] NanoMount"
-echo "[+] Lightweight OverlayFS for Modern Android Devices"
-echo ""
+ui_print "[+] NanoMount"
+ui_print "[+] Lightweight OverlayFS for Modern Android Devices"
+ui_print ""
 
 # check overlayfs support
 if grep -q "overlay" /proc/filesystems 2>/dev/null; then
-    echo "[+] OverlayFS: supported"
+    ui_print "[+] OverlayFS: supported"
 else
     abort "[!] OverlayFS (CONFIG_OVERLAY_FS) is required!"
 fi
@@ -112,45 +112,35 @@ TEST_DIR="/dev"
 [ -w "$TEST_DIR" ] || abort "[!] /dev is not writable!"
 
 if check_overlay_on_tmpfs; then
-    echo "[+] OverlayFS on tmpfs backend: supported"
+    ui_print "[+] OverlayFS on tmpfs backend: supported"
 else
-    echo "[-] OverlayFS on tmpfs backend: not supported"
-    abort "
-[!] Aborting: OverlayFS on tmpfs backend is not supported by this kernel.
-[!] Your device kernel has patched out or lacks tmpfs as a valid OverlayFS lower filesystem.
-[!] Try Mountify as an alternative (uses a loop image instead of tmpfs):
-[!] https://github.com/backslashxx/mountify
-"
+    ui_print "[-] OverlayFS on tmpfs backend: not supported"
+    abort "[!] Aborting: OverlayFS on tmpfs backend is not supported by this kernel."
 fi
 
 # setup persistent config directory
 mkdir -p "$PERSISTENT"
 
 if check_tmpfs_selinux "$TEST_DIR"; then
-    echo "[+] tmpfs SELinux context preservation: supported"
+    ui_print "[+] tmpfs SELinux context preservation: supported"
     if check_tmpfs_trusted "$TEST_DIR"; then
-        echo "[+] tmpfs trusted xattrs (directory replace): supported"
+        ui_print "[+] tmpfs trusted xattrs (directory replace): supported"
         touch "$PERSISTENT/trusted_xattr_supported"
     else
-        echo "[-] tmpfs trusted xattrs (directory replace): not supported by kernel"
-        echo "[!] WARNING: Directory REPLACE (.replace) feature won't be available,"
-        echo "[!] but the module will mount other files perfectly in pure tmpfs mode."
+        ui_print "[-] tmpfs trusted xattrs (directory replace): not supported by kernel"
+        ui_print "[!] WARNING: Directory REPLACE (.replace) feature won't be available,"
+        ui_print "[!] but the module will mount other files perfectly in pure tmpfs mode."
         rm -f "$PERSISTENT/trusted_xattr_supported"
     fi
 else
-    echo "[-] tmpfs SELinux context preservation: not supported"
-    abort "
-[!] Aborting: security.selinux xattr on tmpfs is not supported by this kernel.
-[!] NanoMount requires this feature to correctly apply SELinux labels to overlay files.
-[!] Try Mountify as an alternative (uses a loop image instead of tmpfs):
-[!] https://github.com/backslashxx/mountify
-"
+    ui_print "[-] tmpfs SELinux context preservation: not supported"
+    abort "[!] Aborting: security.selinux xattr on tmpfs is not supported by this kernel."
 fi
 
 # copy default configs if not present
 for file in config.sh modules.txt; do
     if [ ! -f "$PERSISTENT/$file" ]; then
-        echo "[+] Installing default $file"
+        ui_print "[+] Installing default $file"
         cat "$MODPATH/$file" > "$PERSISTENT/$file"
     fi
 done
@@ -162,7 +152,16 @@ rm -f "$MODPATH/config.sh" "$MODPATH/modules.txt"
 echo 0 > "$PERSISTENT/rapid_boots"
 rm -f "$PERSISTENT/last_boot_ts"
 
-echo ""
-echo "[+] Installation complete!"
-echo "[+] Config: $PERSISTENT/config.sh"
-echo "[+] Reboot to activate."
+# Install as metamodule if running KernelSU/APatch and supported
+if grep -q "metamodule=true" "$MODPATH/module.prop" || grep -q "metamodule=1" "$MODPATH/module.prop"; then
+    if { [ "$KSU" = "true" ] && [ ! "$KSU_MAGIC_MOUNT" = "true" ] && [ "$KSU_VER_CODE" -ge 22098 ]; } || \
+       { [ "$APATCH" = "true" ] && [ "$APATCH_VER_CODE" -ge 11170 ]; }; then
+        ui_print "[+] Installing in metamodule mode"
+        mv "$MODPATH/post-fs-data.sh" "$MODPATH/metamount.sh"
+    fi
+fi
+
+ui_print ""
+ui_print "[+] Installation complete!"
+ui_print "[+] Config: $PERSISTENT/config.sh"
+ui_print "[+] Reboot to activate."

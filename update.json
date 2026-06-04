@@ -1,6 +1,6 @@
 {
-  "version": "1.4",
-  "versionCode": 104,
-  "zipUrl": "https://github.com/dyokism/NanoMount/releases/download/1.4/NanoMount-v1.4.zip",
+  "version": "2.0",
+  "versionCode": 200,
+  "zipUrl": "https://github.com/dyokism/NanoMount/releases/latest/download/NanoMount.zip",
   "changelog": "https://raw.githubusercontent.com/dyokism/NanoMount/main/CHANGELOG.md"
 }

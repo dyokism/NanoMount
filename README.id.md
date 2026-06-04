@@ -2,11 +2,11 @@
 
 # NanoMount
 
-**Modul OverlayFS berkinerja tinggi dan sangat ringan (ultra-lightweight) untuk menerapkan modifikasi sistem secara global pada perangkat Android modern.**
+**Modul OverlayFS berkinerja tinggi dan sangat ringan (ultra-lightweight) untuk menerapkan modifikasi sistem secara global pada perangkat Android.**
 
 ![License](https://img.shields.io/badge/License-MIT-blue.svg)
 ![Android](https://img.shields.io/badge/Android-10.0%2B-green.svg)
-![Version](https://img.shields.io/badge/Version-1.4-orange.svg)
+![Version](https://img.shields.io/badge/Version-2.0-orange.svg)
 ![Root](https://img.shields.io/badge/Root-Magisk%20%7C%20KernelSU%20%7C%20APatch-red.svg)
 
 ## Deskripsi Umum
@@ -19,9 +19,9 @@ NanoMount adalah modul root yang sangat ringan (*ultra-lightweight*), menggantik
 
 - **Anti Deteksi**: Memasang file di folder tersembunyi (seperti `/dev/my_preload`), sukses melewati verifikasi m-banking dan deteksi root.
 - **Murni di RAM**: Berjalan sepenuhnya di memori (`tmpfs`). Tanpa berkas citra ext4 loop, nol pemakaian memori internal, dan bebas korupsi data.
-- **Booting Lebih Cepat**: Menghindari perulangan `chcon` file-per-file yang lambat saat booting dengan memverifikasi SELinux di awal.
-- **Proteksi Instalasi**: Mendeteksi ketidakcocokan kernel dan SELinux saat instalasi, mencegah bootloop dengan membatalkan pemasangan secara aman.
-- **Dukungan Universal**: Bekerja langsung dengan Magisk, KernelSU, dan APatch pada Android 10 ke atas.
+- **Keamanan Eksekusi Sourced**: Direfaktorisasi sepenuhnya agar berjalan aman saat di-*source* sebagai `metamount.sh` di KernelSU dan APatch.
+- **Watchdog & Optimalisasi**: Watchdog dinamis pintar (8s di KSU/APatch, 35s di Magisk) dan bebas dari overhead subshell untuk waktu booting yang lebih cepat.
+- **Log Diagnostik Persisten**: Menyimpan ringkasan diagnostik booting di `/data/adb/nanomount/last_boot.log`.
 
 ---
 
@@ -31,19 +31,17 @@ NanoMount adalah modul root yang sangat ringan (*ultra-lightweight*), menggantik
 |-------------|--------|
 | Android | 10.0+ (API 29+) |
 | Kernel | `CONFIG_OVERLAY_FS=y`, `tmpfs` sebagai filesystem lower OverlayFS yang valid, & dukungan xattr `security.selinux` pada `tmpfs` |
-| Root | Magisk, Magisk Alpha, KernelSU, atau APatch |
-
-*(Catatan: Kompatibilitas KSU + susfs dengan MDM ketat (misal. Intune) belum diverifikasi).*
+| Root | Magisk, KernelSU, atau APatch |
 
 ---
 
-## Instalasi & Konfigurasi
+## Instalasi & Struktur Berkas
 
 1. Pasang berkas ZIP melalui tab **Modules** di manager root Anda.
 2. **Reboot** (Mulai ulang) perangkat Anda untuk mengaktifkan.
 3. Atur konfigurasi pada: `/data/adb/nanomount/config.sh`
 
-## Struktur Berkas
+### Struktur Berkas
 
 ```text
 NanoMount/
@@ -53,31 +51,28 @@ NanoMount/
 │           └── android/
 │               ├── update-binary
 │               └── updater-script
-├── config.sh       # opsi konfigurasi pengguna
-├── customize.sh    # pemeriksaan kompatibilitas saat instalasi
-├── module.prop     # metadata modul
-├── post-fs-data.sh # mesin utama mount overlay sub-direktori
-└── service.sh      # reset penghitung waktu boot selesai
+├── config.sh           # opsi konfigurasi pengguna
+├── customize.sh        # pemeriksaan kompatibilitas & metamodule saat instalasi
+├── module.prop         # metadata modul
+├── post-fs-data.sh     # mesin mount overlay (berganti nama jadi metamount.sh pada KSU/APatch)
+├── service.sh          # pembaru deskripsi status & pencatat log diagnostik
+├── boot-completed.sh  # reset watchdog saat booting selesai (KSU/APatch)
+└── uninstall.sh        # skrip pembersihan saat modul dihapus
 ```
 
 ---
 
-## Keterbatasan Diketahui
+## Keterbatasan & Konfigurasi Tingkat Lanjut
 
-*   **Konflik Mount Sub-direktori**: NanoMount memasang modifikasi pada tingkat sub-direktori pertama (misal `/system/bin`, `/system/etc`). Jika ada skrip early-boot atau alat lain yang sudah me-mount berkas sistem langsung pada sub-direktori tersebut sebelum NanoMount berjalan, maka mount ganda akan diabaikan demi keselamatan sistem. Modifikasi apa pun di dalam sub-direktori tersebut tidak akan diterapkan (dicatat di `/dev/kmsg`).
+### Keterbatasan Diketahui
+NanoMount memasang modifikasi pada tingkat sub-direktori pertama (misal `/system/bin`, `/system/etc`). Jika ada skrip early-boot atau alat lain yang sudah me-mount berkas sistem langsung pada sub-direktori tersebut sebelum NanoMount berjalan, maka mount ganda akan diabaikan demi keselamatan sistem. Modifikasi apa pun di dalam sub-direktori tersebut tidak akan diterapkan (dicatat di `/dev/kmsg`).
 
----
-
-## Resolusi Konflik
-
+### Resolusi Konflik
 Jika beberapa modul memodifikasi file yang sama (misal `/system/etc/hosts`), file yang diproses terakhir akan menang di staging area `tmpfs`:
 *   **Mode Otomatis**: Diproses secara **alfabetis** berdasarkan nama folder modul. Folder dengan alfabet terakhir yang menang.
 *   **Mode Manual**: Diproses dari **atas ke bawah** sesuai daftar di `/data/adb/nanomount/modules.txt`. Baris paling bawah yang menang.
 
----
-
-## Mengecualikan Modul
-
+### Mengecualikan Modul
 Untuk mencegah NanoMount memproses modul tertentu (misalnya jika tidak kompatibel atau memiliki sistem *mount* mandiri):
 *   Buat file kosong bernama `skip_nanomount` di dalam folder modul tersebut:
     `/data/adb/modules/<module-id>/skip_nanomount`
@@ -105,19 +100,19 @@ flowchart TD
     FullMode & PureMode --> ConfigSetup[Buat Folder Konfigurasi & Selesai]
     ConfigSetup --> BootStart[Perangkat Reboot & Booting Dimulai]
     
-    BootStart --> WatchdogStart[Nyalakan Watchdog 60s & Cek Anti-Bootloop]
-    WatchdogStart --> StagingCreate[Buat Staging Area tmpfs di /mnt atau /dev]
+    BootStart --> WatchdogStart[Nyalakan Watchdog Dinamis & Cek Anti-Bootloop]
+    WatchdogStart --> StagingCreate[Buat Staging Area tmpfs]
     StagingCreate --> ProcessModules[Proses Seluruh Modul Aktif]
-    ProcessModules --> CopyFiles[Salin File + Terapkan SELinux Context]
-    CopyFiles --> SkipMount[Beri Tanda skip_mount agar Magisk Tidak Double-Mount]
-    SkipMount --> MountOverlay[Mount Overlay di Root Partisi]
+    ProcessModules --> CopyFiles[Salin File + Terapkan SELinux Context via Filesystem]
+    CopyFiles --> SkipMount[Beri Tanda skip_mount agar Manajer Root Tidak Double-Mount]
+    SkipMount --> MountOverlay[Mount Overlay pada Tingkat Sub-direktori]
     MountOverlay --> CleanStaging[Lazy Umount Staging Area agar Memori Bersih]
-    CleanStaging --> WatchdogStop[Matikan Watchdog & Late Boot service.sh]
+    CleanStaging --> WatchdogStop[Matikan Watchdog & Jalankan service.sh]
     
     WatchdogStop --> UILoaded[Sistem Utama Selesai Memuat]
-    UILoaded --> UpdateProp[Baca Log & Perbarui Deskripsi di module.prop]
-    UpdateProp --> WaitBoot[Tunggu Hingga sys.boot_completed=1]
-    WaitBoot --> ResetAntiBoot[Reset Penghitung Anti-Bootloop & Hapus Log /dev/nanomount]
+    UILoaded --> UpdateProp[Perbarui Deskripsi di module.prop]
+    UpdateProp --> WaitBoot[Tunggu Hingga sys.boot_completed=0]
+    WaitBoot --> ResetAntiBoot[Reset Anti-Bootloop & Simpan Log Diagnostik]
     ResetAntiBoot --> Finished([Selesai: Sistem Berjalan Stabil])
 
     %% Kustomisasi Tampilan dan Warna (Tema Gelap Ultra-Redup)
@@ -139,4 +134,3 @@ flowchart TD
 - **Pengembang**: [dyokism](https://github.com/dyokism)
 - **Terima Kasih Khusus**: [bnsmb](https://github.com/bnsmb) karena telah membantu menemukan celah ketidakcocokan kernel.
 - **Lisensi**: MIT
-

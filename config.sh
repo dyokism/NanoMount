@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/system/bin/sh
 # shellcheck disable=SC2034
 # nanomount configuration
 # edit this file at /data/adb/nanomount/config.sh
@@ -10,4 +10,5 @@ nano_mounts=2
 FAKE_MOUNT_NAME="my_preload"
 
 # overlay device name in mounts
+# Note: On KernelSU, this is overridden to "KSU" for detection hiding.
 MOUNT_DEVICE_NAME="overlay"

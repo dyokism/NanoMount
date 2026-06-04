@@ -1,4 +1,5 @@
-#!/bin/sh
+#!/system/bin/sh
+# shellcheck disable=SC1091
 # nanomount - uninstall.sh
 # cleanup on module removal
 
